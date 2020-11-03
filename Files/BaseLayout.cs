@@ -241,7 +241,15 @@ namespace Files
             App.CurrentInstance.NavigationToolbar.CanRefresh = true;
             IsItemSelected = false;
             AssociatedViewModel.IsFolderEmptyTextDisplayed = false;
-            await App.CurrentInstance.FilesystemViewModel.SetWorkingDirectory(parameters);
+
+            var res = await App.CurrentInstance.FilesystemViewModel.SetWorkingDirectory(parameters);
+            if (!res)
+            {
+                // TODO: Show error dialog
+                await App.CurrentInstance.FilesystemViewModel.SetWorkingDirectory("NewTab".GetLocalized());
+                App.CurrentInstance.ContentFrame.Navigate(typeof(YourHome), "NewTab".GetLocalized(), new Windows.UI.Xaml.Media.Animation.SuppressNavigationTransitionInfo());
+                return;
+            }
 
             // pathRoot will be empty on recycle bin path
             var workingDir = App.CurrentInstance.FilesystemViewModel.WorkingDirectory;
@@ -621,11 +629,19 @@ namespace Files
                 }
                 else if (item.PrimaryItemAttribute == StorageItemTypes.File)
                 {
-                    selectedStorageItems.Add(await ItemViewModel.GetFileFromPathAsync(item.ItemPath));
+                    var res = await ItemViewModel.GetFileFromPathAsync(item.ItemPath);
+                    if (res)
+                    {
+                        selectedStorageItems.Add(res.Result);
+                    }
                 }
                 else if (item.PrimaryItemAttribute == StorageItemTypes.Folder)
                 {
-                    selectedStorageItems.Add(await ItemViewModel.GetFolderFromPathAsync(item.ItemPath));
+                    var res = await ItemViewModel.GetFolderFromPathAsync(item.ItemPath);
+                    if (res)
+                    {
+                        selectedStorageItems.Add(res.Result);
+                    }
                 }
             }
 

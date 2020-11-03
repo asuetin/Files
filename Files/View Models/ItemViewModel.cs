@@ -67,11 +67,11 @@ namespace Files.Filesystem
         private StorageFolderWithPath _currentStorageFolder;
         private StorageFolderWithPath _workingRoot;
 
-        public async Task SetWorkingDirectory(string value)
+        public async Task<FilesystemResult> SetWorkingDirectory(string value)
         {
             if (string.IsNullOrWhiteSpace(value))
             {
-                return;
+                return new FilesystemResult(FilesystemErrorCode.ERROR_NOTAFOLDER);
             }
 
             INavigationControlItem item = null;
@@ -112,7 +112,9 @@ namespace Files.Filesystem
             }
             else
             {
-                _currentStorageFolder = await StorageFileExtensions.GetFolderWithPathFromPathAsync(value, _workingRoot, _currentStorageFolder);
+                var res = await StorageFileExtensions.DangerousGetFolderWithPathFromPathAsync(value, _workingRoot, _currentStorageFolder).Wrap();
+                if (!res) return res;
+                _currentStorageFolder = res.Result;
                 _customPath = null;
             }
 
@@ -126,30 +128,31 @@ namespace Files.Filesystem
             }
 
             NotifyPropertyChanged(nameof(WorkingDirectory));
+            return (FilesystemResult)true;
         }
 
-        public static async Task<StorageFolder> GetFolderFromPathAsync(string value, IShellPage appInstance = null)
+        public static async Task<FilesystemResult<StorageFolder>> GetFolderFromPathAsync(string value, IShellPage appInstance = null)
         {
             var instance = appInstance == null ? App.CurrentInstance.FilesystemViewModel : appInstance.FilesystemViewModel;
-            return await StorageFileExtensions.GetFolderFromPathAsync(value, instance._workingRoot, instance._currentStorageFolder);
+            return await StorageFileExtensions.DangerousGetFolderFromPathAsync(value, instance._workingRoot, instance._currentStorageFolder).Wrap();
         }
 
-        public static async Task<StorageFile> GetFileFromPathAsync(string value, IShellPage appInstance = null)
+        public static async Task<FilesystemResult<StorageFile>> GetFileFromPathAsync(string value, IShellPage appInstance = null)
         {
             var instance = appInstance == null ? App.CurrentInstance.FilesystemViewModel : appInstance.FilesystemViewModel;
-            return await StorageFileExtensions.GetFileFromPathAsync(value, instance._workingRoot, instance._currentStorageFolder);
+            return await StorageFileExtensions.DangerousGetFileFromPathAsync(value, instance._workingRoot, instance._currentStorageFolder).Wrap();
         }
 
-        public static async Task<StorageFolderWithPath> GetFolderWithPathFromPathAsync(string value)
+        public static async Task<FilesystemResult<StorageFolderWithPath>> GetFolderWithPathFromPathAsync(string value)
         {
             var instance = App.CurrentInstance.FilesystemViewModel;
-            return await StorageFileExtensions.GetFolderWithPathFromPathAsync(value, instance._workingRoot, instance._currentStorageFolder);
+            return await StorageFileExtensions.DangerousGetFolderWithPathFromPathAsync(value, instance._workingRoot, instance._currentStorageFolder).Wrap();
         }
 
-        public static async Task<StorageFileWithPath> GetFileWithPathFromPathAsync(string value)
+        public static async Task<FilesystemResult<StorageFileWithPath>> GetFileWithPathFromPathAsync(string value)
         {
             var instance = App.CurrentInstance.FilesystemViewModel;
-            return await StorageFileExtensions.GetFileWithPathFromPathAsync(value, instance._workingRoot, instance._currentStorageFolder);
+            return await StorageFileExtensions.DangerousGetFileWithPathFromPathAsync(value, instance._workingRoot, instance._currentStorageFolder).Wrap();
         }
 
         private bool _IsFolderEmptyTextDisplayed;
@@ -472,7 +475,7 @@ namespace Files.Filesystem
                     var matchingItem = _filesAndFolders.FirstOrDefault(x => x == item);
                     try
                     {
-                        StorageFile matchingStorageItem = await StorageFileExtensions.GetFileFromPathAsync((item as ShortcutItem)?.TargetPath ?? item.ItemPath, _workingRoot, _currentStorageFolder);
+                        StorageFile matchingStorageItem = await StorageFileExtensions.DangerousGetFileFromPathAsync((item as ShortcutItem)?.TargetPath ?? item.ItemPath, _workingRoot, _currentStorageFolder);
                         if (matchingItem != null && matchingStorageItem != null)
                         {
                             using (var Thumbnail = await matchingStorageItem.GetThumbnailAsync(ThumbnailMode.SingleItem, thumbnailSize, ThumbnailOptions.UseCurrentScale))
@@ -516,7 +519,7 @@ namespace Files.Filesystem
                     var matchingItem = _filesAndFolders.FirstOrDefault(x => x == item);
                     try
                     {
-                        StorageFolder matchingStorageItem = await StorageFileExtensions.GetFolderFromPathAsync((item as ShortcutItem)?.TargetPath ?? item.ItemPath, _workingRoot, _currentStorageFolder);
+                        StorageFolder matchingStorageItem = await StorageFileExtensions.DangerousGetFolderFromPathAsync((item as ShortcutItem)?.TargetPath ?? item.ItemPath, _workingRoot, _currentStorageFolder);
                         if (matchingItem != null && matchingStorageItem != null)
                         {
                             var iconOverlay = await LoadIconOverlay(matchingItem.ItemPath);
@@ -629,45 +632,6 @@ namespace Files.Filesystem
                 Stopwatch stopwatch = new Stopwatch();
                 stopwatch.Start();
                 App.InteractionViewModel.IsContentLoadingIndicatorVisible = true;
-
-                switch (path)
-                {
-                    case "Desktop":
-                        await SetWorkingDirectory(App.AppSettings.DesktopPath);
-                        break;
-
-                    case "Downloads":
-                        await SetWorkingDirectory(App.AppSettings.DownloadsPath);
-                        break;
-
-                    case "Documents":
-                        await SetWorkingDirectory(App.AppSettings.DocumentsPath);
-                        break;
-
-                    case "Pictures":
-                        await SetWorkingDirectory(App.AppSettings.PicturesPath);
-                        break;
-
-                    case "Music":
-                        await SetWorkingDirectory(App.AppSettings.MusicPath);
-                        break;
-
-                    case "Videos":
-                        await SetWorkingDirectory(App.AppSettings.VideosPath);
-                        break;
-
-                    case "RecycleBin":
-                        await SetWorkingDirectory(App.AppSettings.RecycleBinPath);
-                        break;
-
-                    case "OneDrive":
-                        await SetWorkingDirectory(App.AppSettings.OneDrivePath);
-                        break;
-
-                    default:
-                        await SetWorkingDirectory(path);
-                        break;
-                }
 
                 App.CurrentInstance.NavigationToolbar.CanGoBack = App.CurrentInstance.ContentFrame.CanGoBack;
                 App.CurrentInstance.NavigationToolbar.CanGoForward = App.CurrentInstance.ContentFrame.CanGoForward;

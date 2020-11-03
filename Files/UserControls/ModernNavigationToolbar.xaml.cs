@@ -245,19 +245,21 @@ namespace Files.UserControls
                     if (currentSelectedPath == currentInput) return;
                     var item = await DrivesManager.GetRootFromPath(currentInput);
 
-                    try
+                    var resFolder = await StorageFileExtensions.DangerousGetFolderWithPathFromPathAsync(currentInput, item).Wrap();
+                    if (resFolder)
                     {
-                        var pathToNavigate = (await StorageFileExtensions.GetFolderWithPathFromPathAsync(currentInput, item)).Path;
+                        var pathToNavigate = resFolder.Result.Path;
                         App.CurrentInstance.ContentFrame.Navigate(AppSettings.GetLayoutType(), pathToNavigate); // navigate to folder
                     }
-                    catch (Exception) // Not a folder or inaccessible
+                    else // Not a folder or inaccessible
                     {
-                        try
+                        var resFile = await StorageFileExtensions.DangerousGetFileWithPathFromPathAsync(currentInput, item).Wrap();
+                        if (resFile)
                         {
-                            var pathToInvoke = (await StorageFileExtensions.GetFileWithPathFromPathAsync(currentInput, item)).Path;
+                            var pathToInvoke = resFile.Result.Path;
                             await Interaction.InvokeWin32Component(pathToInvoke);
                         }
-                        catch (Exception ex) // Not a file or not accessible
+                        else // Not a file or not accessible
                         {
                             // Launch terminal application if possible
                             foreach (var terminal in AppSettings.TerminalController.Model.Terminals)
@@ -279,17 +281,10 @@ namespace Files.UserControls
                                 }
                             }
 
-                            try
-                            {
-                                if (!await Launcher.LaunchUriAsync(new Uri(currentInput)))
-                                {
-                                    throw new Exception();
-                                }
-                            }
-                            catch
+                            if (!await Launcher.LaunchUriAsync(new Uri(currentInput)))
                             {
                                 await DialogDisplayHelper.ShowDialog("InvalidItemDialogTitle".GetLocalized(),
-                                    string.Format("InvalidItemDialogContent".GetLocalized(), Environment.NewLine, ex.Message));
+                                    string.Format("InvalidItemDialogContent".GetLocalized(), Environment.NewLine, resFolder.ErrorCode.ToString()));
                             }
                         }
                     }
@@ -501,12 +496,12 @@ namespace Files.UserControls
 
         private async void SetAddressBarSuggestions(AutoSuggestBox sender, int maxSuggestions = 7)
         {
-            try
+            IList<ListedItem> suggestions = null;
+            var expandedPath = StorageFileExtensions.GetPathWithoutEnvironmentVariable(sender.Text);
+            var folderPath = Path.GetDirectoryName(expandedPath) ?? expandedPath;
+            StorageFolderWithPath folder = await ItemViewModel.GetFolderWithPathFromPathAsync(folderPath);
+            if (folder != null)
             {
-                IList<ListedItem> suggestions = null;
-                var expandedPath = StorageFileExtensions.GetPathWithoutEnvironmentVariable(sender.Text);
-                var folderPath = Path.GetDirectoryName(expandedPath) ?? expandedPath;
-                var folder = await ItemViewModel.GetFolderWithPathFromPathAsync(folderPath);
                 var currPath = await folder.GetFoldersWithPathAsync(Path.GetFileName(expandedPath), (uint)maxSuggestions);
                 if (currPath.Count() >= maxSuggestions)
                 {
@@ -559,16 +554,15 @@ namespace Files.UserControls
                         NavigationBarSuggestions.Insert(suggestions.IndexOf(s), s);
                     }
                 }
+                return;
             }
-            catch
+
+            NavigationBarSuggestions.Clear();
+            NavigationBarSuggestions.Add(new ListedItem(null)
             {
-                NavigationBarSuggestions.Clear();
-                NavigationBarSuggestions.Add(new ListedItem(null)
-                {
-                    ItemPath = App.CurrentInstance.FilesystemViewModel.WorkingDirectory,
-                    ItemName = "NavigationToolbarVisiblePathNoResults".GetLocalized()
-                });
-            }
+                ItemPath = App.CurrentInstance.FilesystemViewModel.WorkingDirectory,
+                ItemName = "NavigationToolbarVisiblePathNoResults".GetLocalized()
+            });
         }
 
         private void VisiblePath_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
@@ -607,19 +601,12 @@ namespace Files.UserControls
                 [App.CurrentInstance.NavigationToolbar.PathComponents.IndexOf(pathItem) + 1].Title;
             IList<StorageFolderWithPath> childFolders = new List<StorageFolderWithPath>();
 
-            try
+            StorageFolderWithPath folder = await ItemViewModel.GetFolderWithPathFromPathAsync(pathItem.Path);
+            if (folder != null)
             {
-                var folder = await ItemViewModel.GetFolderWithPathFromPathAsync(pathItem.Path);
                 childFolders = await folder.GetFoldersWithPathAsync(string.Empty);
             }
-            catch
-            {
-                // Do nothing.
-            }
-            finally
-            {
-                flyout.Items?.Clear();
-            }
+            flyout.Items?.Clear();
 
             if (childFolders.Count == 0)
             {

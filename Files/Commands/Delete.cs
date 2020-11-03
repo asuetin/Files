@@ -139,31 +139,30 @@ namespace Files.Commands
                 uint progressValue = (uint)(itemsDeleted * 100.0 / selectedItems.Count);
                 if (selectedItems.Count > 3) { progress.Report((uint)progressValue); }
 
-                IStorageItem item;
-                try
+                var deleted = (FilesystemResult)false;
+                if (storItem.PrimaryItemAttribute == StorageItemTypes.File)
                 {
-                    if (storItem.PrimaryItemAttribute == StorageItemTypes.File)
-                    {
-                        item = await ItemViewModel.GetFileFromPathAsync(storItem.ItemPath, AppInstance);
-                    }
-                    else
-                    {
-                        item = await ItemViewModel.GetFolderFromPathAsync(storItem.ItemPath, AppInstance);
-                    }
-
-                    await item.DeleteAsync(deleteOption);
+                    var res = await ItemViewModel.GetFileFromPathAsync(storItem.ItemPath, AppInstance);
+                    deleted = res ? await res.Result.DeleteAsync(deleteOption).AsTask().Wrap() : res;
                 }
-                catch (UnauthorizedAccessException)
+                else
+                {
+                    var res = await ItemViewModel.GetFolderFromPathAsync(storItem.ItemPath, AppInstance);
+                    deleted = res ? await res.Result.DeleteAsync(deleteOption).AsTask().Wrap() : res;
+                }
+
+                if (deleted.ErrorCode == FilesystemErrorCode.ERROR_UNAUTHORIZED)
                 {
                     if (deleteOption == StorageDeleteOption.Default)
                     {
                         // Try again with fulltrust process
                         if (App.Connection != null)
                         {
-                            var result = await App.Connection.SendMessageAsync(new ValueSet() {
-                            { "Arguments", "FileOperation" },
-                            { "fileop", "MoveToBin" },
-                            { "filepath", storItem.ItemPath } });
+                            var response = await App.Connection.SendMessageAsync(new ValueSet() {
+                                { "Arguments", "FileOperation" },
+                                { "fileop", "MoveToBin" },
+                                { "filepath", storItem.ItemPath } });
+                            deleted = (FilesystemResult)(response.Status == Windows.ApplicationModel.AppService.AppServiceResponseStatus.Success);
                         }
                     }
                     else
@@ -173,32 +172,33 @@ namespace Files.Commands
                         {
                             Debug.WriteLine(System.Runtime.InteropServices.Marshal.GetLastWin32Error());
                         }
+                        else
+                        {
+                            deleted = (FilesystemResult)true;
+                        }
                     }
                 }
-                catch (FileLoadException)
+                else if (deleted.ErrorCode == FilesystemErrorCode.ERROR_INUSE)
                 {
-                    // try again
-                    if (storItem.PrimaryItemAttribute == StorageItemTypes.File)
-                    {
-                        item = await ItemViewModel.GetFileFromPathAsync(storItem.ItemPath, AppInstance);
-                    }
-                    else
-                    {
-                        item = await ItemViewModel.GetFolderFromPathAsync(storItem.ItemPath, AppInstance);
-                    }
-
-                    await item.DeleteAsync(deleteOption);
+                    // TODO: retry or show dialog
                 }
 
                 if (deleteFromRecycleBin)
                 {
                     // Recycle bin also stores a file starting with $I for each item
                     var iFilePath = Path.Combine(Path.GetDirectoryName(storItem.ItemPath), Path.GetFileName(storItem.ItemPath).Replace("$R", "$I"));
-                    await (await ItemViewModel.GetFileFromPathAsync(iFilePath)).DeleteAsync(StorageDeleteOption.PermanentDelete);
+                    var res = await ItemViewModel.GetFileFromPathAsync(iFilePath);
+                    if (res)
+                    {
+                        await res.Result.DeleteAsync(StorageDeleteOption.PermanentDelete).AsTask().Wrap();
+                    }
                 }
 
-                await AppInstance.FilesystemViewModel.RemoveFileOrFolder(storItem);
-                itemsDeleted++;
+                if (deleted)
+                {
+                    await AppInstance.FilesystemViewModel.RemoveFileOrFolder(storItem);
+                    itemsDeleted++;
+                }
             }
         }
     }

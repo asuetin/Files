@@ -773,6 +773,7 @@ namespace Files.Filesystem
                     "AccessDeniedDeleteDialog/Title".GetLocalized(),
                     "SubDirectoryAccessDenied".GetLocalized());
                 IsLoadingItems = false;
+                return;
             }
             else if (res == FilesystemErrorCode.ERROR_NOTFOUND)
             {

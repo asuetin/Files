@@ -233,14 +233,9 @@ namespace Files.View_Models.Properties
                 }
             }
 
-            StorageFile file = null;
-            try
+            StorageFile file = await ItemViewModel.GetFileFromPathAsync((Item as ShortcutItem)?.TargetPath ?? Item.ItemPath);
+            if (file == null)
             {
-                file = await ItemViewModel.GetFileFromPathAsync((Item as ShortcutItem)?.TargetPath ?? Item.ItemPath);
-            }
-            catch (Exception ex)
-            {
-                NLog.LogManager.GetCurrentClassLogger().Error(ex, ex.Message);
                 // Could not access file, can't show any other property
                 return;
             }
@@ -287,14 +282,9 @@ namespace Files.View_Models.Properties
 
         public async void GetSystemFileProperties()
         {
-            StorageFile file = null;
-            try
+            StorageFile file = await ItemViewModel.GetFileFromPathAsync((Item as ShortcutItem)?.TargetPath ?? Item.ItemPath);
+            if (file == null)
             {
-                file = await ItemViewModel.GetFileFromPathAsync((Item as ShortcutItem)?.TargetPath ?? Item.ItemPath);
-            }
-            catch (Exception ex)
-            {
-                NLog.LogManager.GetCurrentClassLogger().Error(ex, ex.Message);
                 // Could not access file, can't show any other property
                 return;
             }
@@ -417,33 +407,23 @@ namespace Files.View_Models.Properties
 
         public async void SyncPropertyChanges()
         {
-            StorageFile file = null;
-
-            try
+            StorageFile file = await ItemViewModel.GetFileFromPathAsync(Item.ItemPath);
+            if (file != null)
             {
-                file = await ItemViewModel.GetFileFromPathAsync(Item.ItemPath);
-                SavePropertiesAsync(file);
-            }
-            catch (Exception e)
-            {
-                Debug.WriteLine(e.ToString());
+                await SavePropertiesAsync(file);
             }
         }
 
-        private async void SavePropertiesAsync(StorageFile file)
+        private async Task SavePropertiesAsync(StorageFile file)
         {
             foreach (KeyValuePair<string, object> valuePair in ViewModel.SystemFileProperties_RW)
             {
                 var newDict = new Dictionary<string, object>();
                 newDict.Add(valuePair.Key, valuePair.Value);
-
-                try
+                var res = await file.Properties.SavePropertiesAsync(newDict).AsTask().Wrap();
+                if (!res)
                 {
-                    await file.Properties.SavePropertiesAsync(newDict);
-                }
-                catch (Exception e)
-                {
-                    Debug.WriteLine(string.Format("{0}\n{1}", valuePair.Key, e.ToString()));
+                    Debug.WriteLine(string.Format("{0}\n{1}", valuePair.Key, res.ErrorCode.ToString()));
                 }
             }
         }
@@ -454,23 +434,18 @@ namespace Files.View_Models.Properties
         /// <returns></returns>
         public async Task ClearPersonalInformation()
         {
-            StorageFile file = null;
-            try
+            StorageFile file = await ItemViewModel.GetFileFromPathAsync(Item.ItemPath);
+            if (file != null)
             {
-                file = await ItemViewModel.GetFileFromPathAsync(Item.ItemPath);
+                var dict = new Dictionary<string, object>();
+
+                foreach (string str in PersonalProperties)
+                    dict.Add(str, null);
+
+                await file.Properties.SavePropertiesAsync(dict).AsTask().Wrap();
+
+                GetSpecialProperties();
             }
-            catch
-            {
-                //return;
-            }
-            var dict = new Dictionary<string, object>();
-
-            foreach (string str in PersonalProperties)
-                dict.Add(str, null);
-
-            await file.Properties.SavePropertiesAsync(dict);
-
-            GetSpecialProperties();
         }
 
         private async void ViewModel_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)

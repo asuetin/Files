@@ -904,9 +904,11 @@ namespace Files.Interacts
                         }
                         // Recycle bin also stores a file starting with $I for each item
                         var iFilePath = Path.Combine(Path.GetDirectoryName(recycleBinItem.ItemPath), Path.GetFileName(recycleBinItem.ItemPath).Replace("$R", "$I"));
-                        await ItemViewModel.GetFileFromPathAsync(iFilePath)
-                            .ContinueWith(t => t.Result ? ((StorageFile)t.Result).DeleteAsync().AsTask().Wrap() : Task.FromResult((FilesystemResult)t.Result))
-                            .Unwrap();
+                        StorageFile iFile = await ItemViewModel.GetFileFromPathAsync(iFilePath);
+                        if (iFile != null)
+                        {
+                            await iFile.DeleteAsync().AsTask().Wrap();
+                        }
                     }
                     catch (UnauthorizedAccessException)
                     {

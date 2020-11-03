@@ -193,13 +193,19 @@ namespace Files.Commands
                         {
                             // If we reached this we are not in an MTP device, using StorageFile.* is ok here
                             StorageFile file = await StorageFile.GetFileFromPathAsync(item.Path);
-                            await file.DeleteAsync(StorageDeleteOption.PermanentDelete);
+                            if (file != null)
+                            {
+                                await file.DeleteAsync(StorageDeleteOption.PermanentDelete).AsTask().Wrap();
+                            }
                         }
                         else if (item.IsOfType(StorageItemTypes.Folder))
                         {
                             // If we reached this we are not in an MTP device, using StorageFolder.* is ok here
                             StorageFolder folder = await StorageFolder.GetFolderFromPathAsync(item.Path);
-                            await folder.DeleteAsync(StorageDeleteOption.PermanentDelete);
+                            if (folder != null)
+                            {
+                                await folder.DeleteAsync(StorageDeleteOption.PermanentDelete).AsTask().Wrap();
+                            }
                         }
                     }
                     catch (UnauthorizedAccessException)

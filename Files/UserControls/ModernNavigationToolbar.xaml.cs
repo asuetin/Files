@@ -281,7 +281,15 @@ namespace Files.UserControls
                                 }
                             }
 
-                            if (!await Launcher.LaunchUriAsync(new Uri(currentInput)))
+                            try
+                            {
+                                if (!await Launcher.LaunchUriAsync(new Uri(currentInput)))
+                                {
+                                    await DialogDisplayHelper.ShowDialog("InvalidItemDialogTitle".GetLocalized(),
+                                        string.Format("InvalidItemDialogContent".GetLocalized(), Environment.NewLine, resFolder.ErrorCode.ToString()));
+                                }
+                            }
+                            catch (UriFormatException)
                             {
                                 await DialogDisplayHelper.ShowDialog("InvalidItemDialogTitle".GetLocalized(),
                                     string.Format("InvalidItemDialogContent".GetLocalized(), Environment.NewLine, resFolder.ErrorCode.ToString()));

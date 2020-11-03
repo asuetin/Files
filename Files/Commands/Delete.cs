@@ -179,6 +179,7 @@ namespace Files.Commands
                 else if (deleted.ErrorCode == FilesystemErrorCode.ERROR_INUSE)
                 {
                     // TODO: retry or show dialog
+                    await DialogDisplayHelper.ShowDialog("FileInUseDeleteDialog/Title".GetLocalized(), "FileInUseDeleteDialog/Text".GetLocalized());
                 }
 
                 if (deleteFromRecycleBin)

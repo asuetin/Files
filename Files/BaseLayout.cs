@@ -241,15 +241,7 @@ namespace Files
             App.CurrentInstance.NavigationToolbar.CanRefresh = true;
             IsItemSelected = false;
             AssociatedViewModel.IsFolderEmptyTextDisplayed = false;
-
-            var res = await App.CurrentInstance.FilesystemViewModel.SetWorkingDirectory(parameters);
-            if (!res)
-            {
-                // TODO: Show error dialog
-                await App.CurrentInstance.FilesystemViewModel.SetWorkingDirectory("NewTab".GetLocalized());
-                App.CurrentInstance.ContentFrame.Navigate(typeof(YourHome), "NewTab".GetLocalized(), new Windows.UI.Xaml.Media.Animation.SuppressNavigationTransitionInfo());
-                return;
-            }
+            await App.CurrentInstance.FilesystemViewModel.SetWorkingDirectory(parameters);
 
             // pathRoot will be empty on recycle bin path
             var workingDir = App.CurrentInstance.FilesystemViewModel.WorkingDirectory;

@@ -63,9 +63,6 @@ namespace Files.Dialogs
                 currentPath = App.CurrentInstance.FilesystemViewModel.WorkingDirectory;
             }
 
-            StorageFolderWithPath folderWithPath = await ItemViewModel.GetFolderWithPathFromPathAsync(currentPath);
-            StorageFolder folderToCreateItem = folderWithPath.Folder;
-
             // Show rename dialog
             RenameDialog renameDialog = new RenameDialog();
             var renameResult = await renameDialog.ShowAsync();
@@ -76,27 +73,30 @@ namespace Files.Dialogs
 
             // Create file based on dialog result
             string userInput = renameDialog.storedRenameInput;
-            try
+
+            var folderRes = await ItemViewModel.GetFolderFromPathAsync(currentPath);
+            FilesystemResult created = folderRes;
+            if (folderRes)
             {
                 switch (itemType)
                 {
                     case AddItemType.Folder:
                         userInput = !string.IsNullOrWhiteSpace(userInput) ? userInput : "NewFolder".GetLocalized();
-                        await folderToCreateItem.CreateFolderAsync(userInput, CreationCollisionOption.GenerateUniqueName);
+                        created = await folderRes.Result.CreateFolderAsync(userInput, CreationCollisionOption.GenerateUniqueName).AsTask().Wrap();
                         break;
 
                     case AddItemType.TextDocument:
                         userInput = !string.IsNullOrWhiteSpace(userInput) ? userInput : "NewTextDocument".GetLocalized();
-                        await folderToCreateItem.CreateFileAsync(userInput + ".txt", CreationCollisionOption.GenerateUniqueName);
+                        created = await folderRes.Result.CreateFileAsync(userInput + ".txt", CreationCollisionOption.GenerateUniqueName).AsTask().Wrap();
                         break;
 
                     case AddItemType.BitmapImage:
                         userInput = !string.IsNullOrWhiteSpace(userInput) ? userInput : "NewBitmapImage".GetLocalized();
-                        await folderToCreateItem.CreateFileAsync(userInput + ".bmp", CreationCollisionOption.GenerateUniqueName);
+                        created = await folderRes.Result.CreateFileAsync(userInput + ".bmp", CreationCollisionOption.GenerateUniqueName).AsTask().Wrap();
                         break;
                 }
             }
-            catch (UnauthorizedAccessException)
+            if (created == FilesystemErrorCode.ERROR_UNAUTHORIZED)
             {
                 await DialogDisplayHelper.ShowDialog("AccessDeniedCreateDialog/Title".GetLocalized(), "AccessDeniedCreateDialog/Text".GetLocalized());
             }

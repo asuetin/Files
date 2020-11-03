@@ -324,21 +324,21 @@ namespace Files.Interacts
         public async void OpenFileLocation_Click(object sender, RoutedEventArgs e)
         {
             var item = CurrentInstance.ContentPage.SelectedItem as ShortcutItem;
-            try
+            var folderPath = Path.GetDirectoryName(item.TargetPath);
+            // Check if destination path exists
+            var destFolder = await ItemViewModel.GetFolderWithPathFromPathAsync(folderPath);
+            if (destFolder)
             {
-                var folderPath = Path.GetDirectoryName(item.TargetPath);
-                // Check if destination path exists
-                var destFolder = await ItemViewModel.GetFolderWithPathFromPathAsync(folderPath);
                 App.CurrentInstance.ContentFrame.Navigate(AppSettings.GetLayoutType(), folderPath);
             }
-            catch (FileNotFoundException)
+            else if (destFolder == FilesystemErrorCode.ERROR_NOTFOUND)
             {
                 await DialogDisplayHelper.ShowDialog("FileNotFoundDialog/Title".GetLocalized(), "FileNotFoundDialog/Text".GetLocalized());
             }
-            catch (Exception ex)
+            else
             {
                 await DialogDisplayHelper.ShowDialog("InvalidItemDialogTitle".GetLocalized(),
-                    string.Format("InvalidItemDialogContent".GetLocalized()), Environment.NewLine, ex.Message);
+                    string.Format("InvalidItemDialogContent".GetLocalized()), Environment.NewLine, destFolder.ErrorCode.ToString());
             }
         }
 

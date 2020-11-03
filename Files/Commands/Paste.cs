@@ -146,12 +146,7 @@ namespace Files.Commands
                             pastedItems.Add(pasted.Result);
                         }
                     }
-
-                    try
-                    {
-
-                    }
-                    catch (UnauthorizedAccessException)
+                    else if (res.ErrorCode == FilesystemErrorCode.ERROR_UNAUTHORIZED)
                     {
                         // Try again with CopyFileFromApp
                         if (NativeDirectoryChangesHelper.CopyFileFromApp(item.Path, Path.Combine(destinationPath, item.Name), true))
@@ -163,7 +158,7 @@ namespace Files.Commands
                             Debug.WriteLine(System.Runtime.InteropServices.Marshal.GetLastWin32Error());
                         }
                     }
-                    catch (FileNotFoundException)
+                    else if (res.ErrorCode == FilesystemErrorCode.ERROR_NOTFOUND)
                     {
                         // File was moved/deleted in the meantime
                         continue;

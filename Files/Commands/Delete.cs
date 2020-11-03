@@ -46,73 +46,72 @@ namespace Files.Commands
                 StatusBanner.StatusBannerOperation.Recycle);
             }
 
-            try
+            Stopwatch sw = new Stopwatch();
+            sw.Start();
+
+            var res = await DeleteItem(deleteOption, CurrentInstance, bannerResult.Progress);
+            bannerResult.Remove();
+            sw.Stop();
+            if (!res)
             {
-                Stopwatch sw = new Stopwatch();
-                sw.Start();
-
-                await DeleteItem(deleteOption, CurrentInstance, bannerResult.Progress);
-                bannerResult.Remove();
-
-                sw.Stop();
-
-                if (sw.Elapsed.TotalSeconds >= 10)
+                if (res.ErrorCode == FilesystemErrorCode.ERROR_UNAUTHORIZED)
                 {
-                    if (deleteOption == StorageDeleteOption.PermanentDelete)
-                    {
-                        App.CurrentInstance.StatusBarControl.OngoingTasksControl.PostBanner(
-                        "Deletion Complete",
-                        "The operation has completed.",
+                    bannerResult.Remove();
+                    App.CurrentInstance.StatusBarControl.OngoingTasksControl.PostBanner(
+                        "AccessDeniedDeleteDialog/Title".GetLocalized(),
+                        "AccessDeniedDeleteDialog/Text".GetLocalized(),
                         0,
-                        StatusBanner.StatusBannerSeverity.Success,
+                        StatusBanner.StatusBannerSeverity.Error,
                         StatusBanner.StatusBannerOperation.Delete);
-                    }
-                    else
-                    {
-                        App.CurrentInstance.StatusBarControl.OngoingTasksControl.PostBanner(
-                        "Recycle Complete",
-                        "The operation has completed.",
-                        0,
-                        StatusBanner.StatusBannerSeverity.Success,
-                        StatusBanner.StatusBannerOperation.Recycle);
-                    }
                 }
-
-                App.CurrentInstance.NavigationToolbar.CanGoForward = false;
+                else if (res.ErrorCode == FilesystemErrorCode.ERROR_NOTFOUND)
+                {
+                    bannerResult.Remove();
+                    App.CurrentInstance.StatusBarControl.OngoingTasksControl.PostBanner(
+                        "FileNotFoundDialog/Title".GetLocalized(),
+                        "FileNotFoundDialog/Text".GetLocalized(),
+                        0,
+                        StatusBanner.StatusBannerSeverity.Error,
+                        StatusBanner.StatusBannerOperation.Delete);
+                }
+                else if (res.ErrorCode == FilesystemErrorCode.ERROR_INUSE)
+                {
+                    bannerResult.Remove();
+                    App.CurrentInstance.StatusBarControl.OngoingTasksControl.PostActionBanner(
+                        "FileInUseDeleteDialog/Title".GetLocalized(),
+                        "FileInUseDeleteDialog/Text".GetLocalized(),
+                        "FileInUseDeleteDialog/PrimaryButtonText".GetLocalized(),
+                        "FileInUseDeleteDialog/SecondaryButtonText".GetLocalized(), () => { DeleteItemWithStatus(deleteOption); });
+                }
             }
-            catch (UnauthorizedAccessException)
+            else if (sw.Elapsed.TotalSeconds >= 10)
             {
-                bannerResult.Remove();
-                App.CurrentInstance.StatusBarControl.OngoingTasksControl.PostBanner(
-                    "AccessDeniedDeleteDialog/Title".GetLocalized(), 
-                    "AccessDeniedDeleteDialog/Text".GetLocalized(),
-                    0, 
-                    StatusBanner.StatusBannerSeverity.Error, 
-                    StatusBanner.StatusBannerOperation.Delete);
-            }
-            catch (FileNotFoundException)
-            {
-                bannerResult.Remove();
-                App.CurrentInstance.StatusBarControl.OngoingTasksControl.PostBanner(
-                    "FileNotFoundDialog/Title".GetLocalized(),
-                    "FileNotFoundDialog/Text".GetLocalized(),
+                if (deleteOption == StorageDeleteOption.PermanentDelete)
+                {
+                    App.CurrentInstance.StatusBarControl.OngoingTasksControl.PostBanner(
+                    "Deletion Complete",
+                    "The operation has completed.",
                     0,
-                    StatusBanner.StatusBannerSeverity.Error,
+                    StatusBanner.StatusBannerSeverity.Success,
                     StatusBanner.StatusBannerOperation.Delete);
+                }
+                else
+                {
+                    App.CurrentInstance.StatusBarControl.OngoingTasksControl.PostBanner(
+                    "Recycle Complete",
+                    "The operation has completed.",
+                    0,
+                    StatusBanner.StatusBannerSeverity.Success,
+                    StatusBanner.StatusBannerOperation.Recycle);
+                }
             }
-            catch (IOException)
-            {
-                bannerResult.Remove();
-                App.CurrentInstance.StatusBarControl.OngoingTasksControl.PostActionBanner(
-                    "FileInUseDeleteDialog/Title".GetLocalized(),
-                    "FileInUseDeleteDialog/Text".GetLocalized(),
-                    "FileInUseDeleteDialog/PrimaryButtonText".GetLocalized(),
-                    "FileInUseDeleteDialog/SecondaryButtonText".GetLocalized(), () => { DeleteItemWithStatus(deleteOption); });
-            }
+
+            App.CurrentInstance.NavigationToolbar.CanGoForward = false;
         }
 
-        private static async Task DeleteItem(StorageDeleteOption deleteOption, IShellPage AppInstance, IProgress<uint> progress)
+        private static async Task<FilesystemResult> DeleteItem(StorageDeleteOption deleteOption, IShellPage AppInstance, IProgress<uint> progress)
         {
+            var deleted = (FilesystemResult)false;
             var deleteFromRecycleBin = AppInstance.FilesystemViewModel.WorkingDirectory.StartsWith(App.AppSettings.RecycleBinPath);
 
             List<ListedItem> selectedItems = new List<ListedItem>();
@@ -128,7 +127,7 @@ namespace Files.Commands
 
                 if (dialog.Result != MyResult.Delete) //delete selected  item(s) if the result is yes
                 {
-                    return; //return if the result isn't delete
+                    return (FilesystemResult)true; //return if the result isn't delete
                 }
                 deleteOption = dialog.PermanentlyDelete;
             }
@@ -139,7 +138,6 @@ namespace Files.Commands
                 uint progressValue = (uint)(itemsDeleted * 100.0 / selectedItems.Count);
                 if (selectedItems.Count > 3) { progress.Report((uint)progressValue); }
 
-                var deleted = (FilesystemResult)false;
                 if (storItem.PrimaryItemAttribute == StorageItemTypes.File)
                 {
                     var res = await ItemViewModel.GetFileFromPathAsync(storItem.ItemPath, AppInstance);
@@ -199,7 +197,13 @@ namespace Files.Commands
                     await AppInstance.FilesystemViewModel.RemoveFileOrFolder(storItem);
                     itemsDeleted++;
                 }
+                else
+                {
+                    // Stop at first error
+                    return deleted;
+                }
             }
+            return (FilesystemResult)true;
         }
     }
 }

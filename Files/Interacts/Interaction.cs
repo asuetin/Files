@@ -815,6 +815,11 @@ namespace Files.Interacts
                 {
                     await DialogDisplayHelper.ShowDialog("RenameError.TooLong.Title".GetLocalized(), "RenameError.TooLong.Text".GetLocalized());
                 }
+                else if (renamed.ErrorCode == FilesystemErrorCode.ERROR_INUSE)
+                {
+                    // TODO: proper dialog, retry
+                    await DialogDisplayHelper.ShowDialog("FileInUseDeleteDialog/Title".GetLocalized(), "");
+                }
                 else if (renamed.ErrorCode == FilesystemErrorCode.ERROR_NOTFOUND)
                 {
                     await DialogDisplayHelper.ShowDialog("RenameError.ItemDeleted.Title".GetLocalized(), "RenameError.ItemDeleted.Text".GetLocalized());
